@@ -1,73 +1,25 @@
-name: Build HsMod and Release DLL
+name: HsMod Auto Build
 
-on:
-  push:
-    branches:
-      - bepinex5
-
-  workflow_dispatch:
-    # 手动触发时可以选择要构建的分支（可选）
-    inputs:
-      branch:
-        description: '要构建的分支（默认当前仓库默认分支）'
-        required: false
-        default: ''
+on: [push, workflow_dispatch]
 
 jobs:
-  build-and-release:
+  build:
     runs-on: windows-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.inputs.branch || github.ref }}
+      - uses: actions/checkout@v4
 
-      # ----------------------------------------------------------------
-      - name: Setup .NET 8.x
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      # ----------------------------------------------------------------
-      - name: Restore dependencies
-        run: dotnet restore --locked-mode
-        # 如果你的项目没有 lock file，也可以去掉 --locked-mode
+      - run: dotnet restore
+      - run: dotnet build -c Release -p:RestoreLockedMode=true
 
-      # ----------------------------------------------------------------
-      - name: Build Release
-        run: dotnet build --configuration Release --no-restore
-
-      # ----------------------------------------------------------------
-      - name: Upload HsMod.dll as artifact (for debug)
-        uses: actions/upload-artifact@v4
+      - uses: softprops/action-gh-release@v2
         with:
-          name: HsMod-dll
-          path: HsMod/Release/HsMod.dll
-          if-no-files-found: error
-          retention-days: 7
-
-      # ----------------------------------------------------------------
-      # 创建或更新 GitHub Release（不带 tag）
-      - name: Create/Update Draft Release
-        uses: softprops/action-gh-release@v2
-        if: success()
-        with:
-          tag_name: latest-build
-          name: Latest HsMod Build
+          tag_name: latest
+          name: HsMod - Latest Auto Build
+          files: HsMod/Release/HsMod.dll
           prerelease: true
-          draft: false
-          generate_release_notes: false
-          fail_on_unmatched_files: true
-          files: |
-            HsMod/Release/HsMod.dll
-          body: |
-            Auto-generated build from commit ${{ github.sha }}
-            
-            - Branch: ${{ github.ref_name }}
-            - Commit: ${{ github.sha }}
-            - Built at: ${{ github.event.repository.updated_at || github.event.head_commit.timestamp }}
-            
-            This is an automated pre-release containing only HsMod.dll
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
