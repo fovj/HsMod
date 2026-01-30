@@ -2,7 +2,7 @@ name: Build and Release HsMod
 
 on:
   push:
-    branches: [ main ]
+    branches: [ bepinex5 ]
 
 permissions:
   contents: write
