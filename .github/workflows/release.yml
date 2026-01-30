@@ -4,12 +4,6 @@ on:
   push:
     branches:
       - bepinex5
-    paths:
-      - '**.cs'
-      - '**.csproj'
-      - '**.sln'
-      - '**Directory.Build.props'
-      - '.github/workflows/build-and-release.yml'
 
   workflow_dispatch:
     # 手动触发时可以选择要构建的分支（可选）
