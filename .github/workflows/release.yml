@@ -1,57 +1,59 @@
-name: Build and Update Latest Release
+name: Build and Release HsMod
 
 on:
   push:
-    branches: [ main, master ]
-  workflow_dispatch:
+    branches: [ main ]
 
 permissions:
   contents: write
 
 jobs:
   build:
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
+
     steps:
-    - name: Checkout
+    - name: Checkout repository
       uses: actions/checkout@v4
 
     - name: Setup .NET 8
-      uses: actions/setup-dotnet@v5
+      uses: actions/setup-dotnet@v4
       with:
-        dotnet-version: '8.0.x'[web:36][attached_file:1]
+        dotnet-version: '8.0.x'
 
     - name: Clone HsMod bepinex5 branch
       run: |
-        git clone --depth 1 --branch bepinex5 https://github.com/Pik-4/HsMod HsMod-temp[attached_file:1]
+        git clone --depth 1 --branch bepinex5 https://github.com/Pik-4/HsMod.git
+        cd HsMod
 
-    - name: Build HsMod Release
+    - name: Build HsMod
       run: |
-        cd HsMod-temp
-        dotnet build --configuration Release --no-restore[attached_file:1]
+        cd HsMod
+        dotnet build --configuration Release --no-restore
 
-    - name: Get latest release
-      id: latest_release
-      uses: Insonmnia/gh-release-fetch@v1.5.2
+    - name: Generate tag name
+      id: tag
+      run: echo "tag=HsMod-$(date +%Y%m%d)-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v2
       with:
-        github_token: ${{ secrets.GITHUB_TOKEN }}[web:50]
-
-    - name: Update or create latest release
-      if: steps.latest_release.outputs.tag_name == ''
-      uses: actions/create-release@v1
+        tag_name: ${{ steps.tag.outputs.tag }}
+        name: HsMod Build ${{ steps.tag.outputs.tag }}
+        body: |
+          Automated build from commit ${{ github.sha }}.
+          Built on ${{ github.event.head_commit.timestamp }}.
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: latest
-        release_name: Latest HsMod Build
-        draft: false
-        prerelease: false[web:35]
 
-    - name: Upload HsMod.dll to latest release
+    - name: Upload HsMod.dll
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.latest_release.outputs.upload_url || fromJson(github.event.inputs.create_release || '{}').upload_url }}
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
         asset_path: ./HsMod/Release/HsMod.dll
         asset_name: HsMod.dll
-        asset_content_type: application/octet-stream[web:30][web:42][attached_file:1]
+        asset_content_type: application/octet-stream
