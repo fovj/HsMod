@@ -59,7 +59,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         if: success()
         with:
-          # tag_name: latest-build
+          tag_name: latest-build
           name: Latest HsMod Build
           prerelease: true
           draft: false
