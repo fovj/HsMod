@@ -1,0 +1,50 @@
+name: Build and Release HsMod.dll
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 8
+      uses: actions/setup-dotnet@v5
+      with:
+        dotnet-version: '8.0.x'[web:36][attached_file:1]
+
+    - name: Clone HsMod bepinex5 branch
+      run: |
+        git clone --depth 1 --branch bepinex5 https://github.com/Pik-4/HsMod HsMod-temp
+        cd HsMod-temp[web:36][attached_file:1]
+
+    - name: Build HsMod Release
+      run: |
+        cd HsMod-temp
+        dotnet build --configuration Release --no-restore[web:36][attached_file:1]
+
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ github.ref }}
+        release_name: HsMod ${{ github.ref }}
+        draft: false
+        prerelease: false[web:28][web:30]
+
+    - name: Upload HsMod.dll
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: ./HsMod-temp/Release/HsMod.dll
+        asset_name: HsMod.dll
+        asset_content_type: application/octet-stream[web:28][web:30][attached_file:1]
