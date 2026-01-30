@@ -1,10 +1,12 @@
-name: Build and Release HsMod.dll
+name: Build and Update Latest Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [ main, master ]
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -20,31 +22,36 @@ jobs:
 
     - name: Clone HsMod bepinex5 branch
       run: |
-        git clone --depth 1 --branch bepinex5 https://github.com/Pik-4/HsMod HsMod-temp
-        cd HsMod-temp[web:36][attached_file:1]
+        git clone --depth 1 --branch bepinex5 https://github.com/Pik-4/HsMod HsMod-temp[attached_file:1]
 
     - name: Build HsMod Release
       run: |
         cd HsMod-temp
-        dotnet build --configuration Release --no-restore[web:36][attached_file:1]
+        dotnet build --configuration Release --no-restore[attached_file:1]
 
-    - name: Create Release
-      id: create_release
+    - name: Get latest release
+      id: latest_release
+      uses: Insonmnia/gh-release-fetch@v1.5.2
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}[web:50]
+
+    - name: Update or create latest release
+      if: steps.latest_release.outputs.tag_name == ''
       uses: actions/create-release@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        tag_name: ${{ github.ref }}
-        release_name: HsMod ${{ github.ref }}
+        tag_name: latest
+        release_name: Latest HsMod Build
         draft: false
-        prerelease: false[web:28][web:30]
+        prerelease: false[web:35]
 
-    - name: Upload HsMod.dll
+    - name: Upload HsMod.dll to latest release
       uses: actions/upload-release-asset@v1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        upload_url: ${{ steps.latest_release.outputs.upload_url || fromJson(github.event.inputs.create_release || '{}').upload_url }}
         asset_path: ./HsMod/Release/HsMod.dll
         asset_name: HsMod.dll
-        asset_content_type: application/octet-stream[web:28][web:30][attached_file:1]
+        asset_content_type: application/octet-stream[web:30][web:42][attached_file:1]
