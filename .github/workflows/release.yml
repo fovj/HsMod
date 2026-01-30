@@ -1,59 +1,79 @@
-name: Build and Release HsMod
+name: Build HsMod and Release DLL
 
 on:
   push:
-    branches: [ bepinex5 ]
+    branches:
+      - bepinex5
+    paths:
+      - '**.cs'
+      - '**.csproj'
+      - '**.sln'
+      - '**Directory.Build.props'
+      - '.github/workflows/build-and-release.yml'
 
-permissions:
-  contents: write
+  workflow_dispatch:
+    # 手动触发时可以选择要构建的分支（可选）
+    inputs:
+      branch:
+        description: '要构建的分支（默认当前仓库默认分支）'
+        required: false
+        default: ''
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  build-and-release:
+    runs-on: windows-latest
 
     steps:
-    - name: Checkout repository
-      uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch || github.ref }}
 
-    - name: Setup .NET 8
-      uses: actions/setup-dotnet@v4
-      with:
-        dotnet-version: '8.0.x'
+      # ----------------------------------------------------------------
+      - name: Setup .NET 8.x
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
 
-    - name: Clone HsMod bepinex5 branch
-      run: |
-        git clone --depth 1 --branch bepinex5 https://github.com/Pik-4/HsMod.git
-        cd HsMod
+      # ----------------------------------------------------------------
+      - name: Restore dependencies
+        run: dotnet restore --locked-mode
+        # 如果你的项目没有 lock file，也可以去掉 --locked-mode
 
-    - name: Build HsMod
-      run: |
-        cd HsMod
-        dotnet build --configuration Release --no-restore
+      # ----------------------------------------------------------------
+      - name: Build Release
+        run: dotnet build --configuration Release --no-restore
 
-    - name: Generate tag name
-      id: tag
-      run: echo "tag=HsMod-$(date +%Y%m%d)-${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+      # ----------------------------------------------------------------
+      - name: Upload HsMod.dll as artifact (for debug)
+        uses: actions/upload-artifact@v4
+        with:
+          name: HsMod-dll
+          path: HsMod/Release/HsMod.dll
+          if-no-files-found: error
+          retention-days: 7
 
-    - name: Create Release
-      id: create_release
-      uses: softprops/action-gh-release@v2
-      with:
-        tag_name: ${{ steps.tag.outputs.tag }}
-        name: HsMod Build ${{ steps.tag.outputs.tag }}
-        body: |
-          Automated build from commit ${{ github.sha }}.
-          Built on ${{ github.event.head_commit.timestamp }}.
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Upload HsMod.dll
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: ./HsMod/Release/HsMod.dll
-        asset_name: HsMod.dll
-        asset_content_type: application/octet-stream
+      # ----------------------------------------------------------------
+      # 创建或更新 GitHub Release（不带 tag）
+      - name: Create/Update Draft Release
+        uses: softprops/action-gh-release@v2
+        if: success()
+        with:
+          tag_name: latest-build
+          name: Latest HsMod Build
+          prerelease: true
+          draft: false
+          generate_release_notes: false
+          fail_on_unmatched_files: true
+          files: |
+            HsMod/Release/HsMod.dll
+          body: |
+            Auto-generated build from commit ${{ github.sha }}
+            
+            - Branch: ${{ github.ref_name }}
+            - Commit: ${{ github.sha }}
+            - Built at: ${{ github.event.repository.updated_at || github.event.head_commit.timestamp }}
+            
+            This is an automated pre-release containing only HsMod.dll
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
