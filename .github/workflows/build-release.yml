@@ -1,0 +1,84 @@
+name: Build and Release
+
+on:
+  # 当 sync fork 后，代码推送到 bepinex5 分支时触发
+  push:
+    branches: [ "bepinex5" ]
+  # 支持手动触发
+  workflow_dispatch:
+
+# 确保同一时间只有一个 release 流程在运行
+concurrency:
+  group: build-release
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+    # 检出代码
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    # 配置 .NET SDK
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.x
+
+    # 还原依赖
+    - name: Restore dependencies
+      run: dotnet restore --locked-mode
+
+    # 构建项目 (Release 配置)
+    - name: Build HsMod
+      run: dotnet build --configuration Release --no-restore
+
+    # 从 PluginInfo.cs 中提取版本号
+    - name: Extract version
+      id: version
+      shell: pwsh
+      run: |
+        $content = Get-Content "HsMod/PluginInfo.cs" -Raw
+        if ($content -match 'PLUGIN_VERSION\s*=\s*"([^"]+)"') {
+          $version = $Matches[1]
+          echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+        } else {
+          echo "VERSION=unknown" >> $env:GITHUB_OUTPUT
+        }
+
+    # 检查构建产物
+    - name: Verify build output
+      shell: pwsh
+      run: |
+        if (!(Test-Path "HsMod/Release/HsMod.dll")) {
+          echo "::error::Build output not found: HsMod/Release/HsMod.dll"
+          exit 1
+        }
+        echo "Build output verified: HsMod/Release/HsMod.dll"
+
+    # 删除已有的 latest release（如果存在）
+    - name: Delete existing latest release
+      shell: pwsh
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # 尝试删除已有的 latest release
+        gh release delete latest --yes --cleanup-tag 2>$null
+        echo "Old latest release cleaned up (if it existed)"
+
+    # 创建/更新 latest release
+    - name: Create latest release
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        gh release create latest `
+          "HsMod/Release/HsMod.dll" `
+          --title "HsMod v${{ steps.version.outputs.VERSION }}" `
+          --notes "v${{ steps.version.outputs.VERSION }}" `
+          --prerelease
